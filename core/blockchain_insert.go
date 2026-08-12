@@ -65,8 +65,8 @@ func (st *insertStats) report(chain []*types.Block, index int, snapDiffItems, sn
 
 		// Assemble the log context and send it to the logger
 		context := []interface{}{
-			"number", end.Number(), //"hash", end.Hash(), "miner", end.Coinbase(),
-			"blocks", st.processed, "txs", txs, "blobs", blobs, "mgas", float64(st.usedGas) / 1000000, 
+			"number", end.Number(), "hash", end.Hash(), "miner", end.Coinbase(),
+			"blocks", st.processed, "txs", txs, "blobs", blobs, "mgas", float64(st.usedGas) / 1000000,
 			"elapsed", common.PrettyDuration(elapsed), "block2process_ms", block2processMs, "mgasps", mgasps, "BAL", end.BAL() != nil,
 		}
 		blockInsertMgaspsGauge.Update(int64(mgasps))

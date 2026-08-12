@@ -177,7 +177,11 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
 	}
 
-	rpcSub := notifier.CreateSubscription()
+	var (
+		rpcSub       = notifier.CreateSubscription()
+		txs          = make(chan []*types.Transaction, 128)
+		pendingTxSub = api.events.SubscribePendingTxs(txs)
+	)
 
 	gopool.Submit(func() {
 		const maxSeenPending = 200000
@@ -185,9 +189,6 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 		seen := make(map[common.Hash]struct{}, maxSeenPending)
 		seenOrder := make([]common.Hash, 0, maxSeenPending)
 		seenMu := sync.Mutex{} // 保护 seen 和 seenOrder 的并发访问
-
-		txs := make(chan []*types.Transaction, 128)
-		pendingTxSub := api.events.SubscribePendingTxs(txs)
 		defer pendingTxSub.Unsubscribe()
 
 		chainConfig := api.sys.backend.ChainConfig()
@@ -309,6 +310,7 @@ func (api *FilterAPI) NewVotesFilter() rpc.ID {
 	api.filtersMu.Unlock()
 
 	gopool.Submit(func() {
+		defer voteSub.Unsubscribe()
 		for {
 			select {
 			case vote := <-votes:
@@ -336,18 +338,20 @@ func (api *FilterAPI) NewVotes(ctx context.Context) (*rpc.Subscription, error) {
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
 	}
 
-	rpcSub := notifier.CreateSubscription()
+	var (
+		rpcSub  = notifier.CreateSubscription()
+		votes   = make(chan *types.VoteEnvelope, 128)
+		voteSub = api.events.SubscribeNewVotes(votes)
+	)
 
 	gopool.Submit(func() {
-		votes := make(chan *types.VoteEnvelope, 128)
-		voteSub := api.events.SubscribeNewVotes(votes)
+		defer voteSub.Unsubscribe()
 
 		for {
 			select {
 			case vote := <-votes:
 				notifier.Notify(rpcSub.ID, vote)
 			case <-rpcSub.Err():
-				voteSub.Unsubscribe()
 				return
 			}
 		}
@@ -397,11 +401,13 @@ func (api *FilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, error) {
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
 	}
 
-	rpcSub := notifier.CreateSubscription()
+	var (
+		rpcSub     = notifier.CreateSubscription()
+		headers    = make(chan *types.Header)
+		headersSub = api.events.SubscribeNewHeads(headers)
+	)
 
 	gopool.Submit(func() {
-		headers := make(chan *types.Header)
-		headersSub := api.events.SubscribeNewHeads(headers)
 		defer headersSub.Unsubscribe()
 
 		for {
@@ -429,6 +435,7 @@ func (api *FilterAPI) NewFinalizedHeaderFilter() rpc.ID {
 	api.filtersMu.Unlock()
 
 	gopool.Submit(func() {
+		defer headerSub.Unsubscribe()
 		for {
 			select {
 			case h := <-headers:
@@ -456,18 +463,20 @@ func (api *FilterAPI) NewFinalizedHeaders(ctx context.Context) (*rpc.Subscriptio
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
 	}
 
-	rpcSub := notifier.CreateSubscription()
+	var (
+		rpcSub     = notifier.CreateSubscription()
+		headers    = make(chan *types.Header)
+		headersSub = api.events.SubscribeNewFinalizedHeaders(headers)
+	)
 
 	gopool.Submit(func() {
-		headers := make(chan *types.Header)
-		headersSub := api.events.SubscribeNewFinalizedHeaders(headers)
+		defer headersSub.Unsubscribe()
 
 		for {
 			select {
 			case h := <-headers:
 				notifier.Notify(rpcSub.ID, h)
 			case <-rpcSub.Err():
-				headersSub.Unsubscribe()
 				return
 			}
 		}

@@ -62,3 +62,8 @@ cmd/geth/geth
 cmd/rlpdump/rlpdump
 cmd/workload/workload
 cmd/keeper/keeper
+
+# arb dev backups (transient, never commit)
+.arb_bak/
+*.arb-bak
+*.bak_*

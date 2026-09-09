@@ -147,6 +147,7 @@ type Ethereum struct {
 
 	networkID     uint64
 	netRPCService *ethapi.NetAPI
+	arbService    *arbService // NODE-04 async simulation service (own boot id)
 
 	p2pServer *p2p.Server
 
@@ -559,6 +560,17 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	stack.RegisterAPIs(eth.APIs())
 	stack.RegisterProtocols(eth.Protocols())
 	stack.RegisterLifecycle(eth)
+
+	// arb: NODE-04 async simulation service — own boot id, fixed workers, own
+	// lifecycle. Registered as a separate Lifecycle + 'arb' RPC namespace so it
+	// never touches the node core Start/Stop or APIs().
+	if arbSvc, aerr := eth.newArbService(arbServiceConfig{}); aerr != nil {
+		return nil, aerr
+	} else {
+		eth.arbService = arbSvc
+		stack.RegisterAPIs([]rpc.API{{Namespace: "arb", Service: NewArbAPI(arbSvc)}})
+		stack.RegisterLifecycle(arbSvc)
+	}
 
 	// Successful startup; push a marker and check previous unclean shutdowns.
 	eth.shutdownTracker.MarkStartup()
